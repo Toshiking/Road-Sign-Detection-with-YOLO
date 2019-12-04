@@ -52,8 +52,8 @@ real_path       =   "./real"                #学習と共にとりあえず検�
 model_path      =   "./model/best_val.pth"  #学習済みモデルをロードする場所の指定
 img_size        =   512                     #画像のサイズ
 lr_decay_rate   =   0.1                     #学習率減衰割合の指定
-decay_limit     =   20                      #何回うまくいかなかったら減衰させるか
-init_lr         =   0.01                    #最初の学習率
+decay_limit     =   30                      #何回うまくいかなかったら減衰させるか
+init_lr         =   0.1                     #最初の学習率
 CLASS           =   5
 real_list       =   sorted(glob.glob(os.path.join(real_path,'*')))
 RESOLURION      =   2
@@ -184,7 +184,7 @@ def test(epoch,best_loss,decay_counter):
 
 
 
-def Bounding_Box(y_scale1 , y_scale2, image,THRESHOLD = 0.5):
+def Bounding_Box(y_scale1 , y_scale2, image,THRESHOLD = 0.01):
     y       =   [y_scale1 , y_scale2]
     counter =   0
     p       =   [[10,14],[23,27],[37,58],[81,82],[135,169],[344,319]]
@@ -221,19 +221,20 @@ def Bounding_Box(y_scale1 , y_scale2, image,THRESHOLD = 0.5):
     
     return image
     
-def real(epoch):
+def real():
     model.eval()
     total_loss          =   0
     for n,img_path in enumerate(real_list):
         data        =   cv2.imread(img_path)
-        data        =   cv2.resize(data , (416 ,416))/255
+        data        =   cv2.resize(data , (416 ,416))
+        image       =   copy.deepcopy(data)
         box         =   torch.zeros((1,3,416,416))
-        data        =   transforms.ToTensor()(np.array(data, dtype = np.float32))
+        data        =   transforms.ToTensor()(np.array(data/255, dtype = np.float32))
         box[0,:,:,:]=   data
         x_image     =   box.to(device)
         output_1,output_2          =   model(x_image)
         try:
-            image   =   Bounding_Box(output_1 , output_2 , cv2.resize(cv2.imread(img_path) , (416 , 416)))
+            image   =   Bounding_Box(output_1 , output_2 , image , THRESHOLD    =   0.01)
             cv2.imwrite("./save/No{}.bmp".format(n+1),image)
         except Exception as e:
             print("例外args:", e.args)
@@ -278,9 +279,14 @@ def RealTime():
         print("THRESHOLD is {}\r".format(THRESHOLD) , end = '')
 if mode == 2:
     RealTime()
+elif mode == 3:
+    real()
+
+
 else:
     for epoch in range(n_epoch):
         train(epoch)
         best_loss,decay_counter = test(epoch,best_loss,decay_counter)
         print()
-        real(epoch)
+        real()
+        

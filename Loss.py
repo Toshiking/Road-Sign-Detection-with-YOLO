@@ -51,8 +51,9 @@ class YOLO_LOSS(nn.Module):
         #print(y_scale1.shape , t_scale1.shape)
         eps     =   1e-2
         Loss    =   torch.tensor(0,dtype = torch.float32).to('cuda')
-        L_coord =   5
-        L_noobj =   0.5
+        L_obj   =   1
+        L_noobj =   100
+        L_coord =   100
         Loss_class  =   torch.tensor(0,dtype = torch.float32).to('cuda')
         Loss_noobj  =   torch.tensor(0,dtype = torch.float32).to('cuda')
         Loss_obj    =   torch.tensor(0,dtype = torch.float32).to('cuda')
@@ -92,7 +93,7 @@ class YOLO_LOSS(nn.Module):
                         #print(nn.MSELoss(reduction = 'sum')(y_bb,t_bb))
                         Loss_coord  +=   L_coord*nn.MSELoss(reduction = 'sum')(y_bb,t_bb)
                         #print(y_box[4,Cy,Cx])
-                        Loss_obj    +=   -1 * torch.sigmoid(y_box[4,Cy,Cx]).log() 
+                        Loss_obj    +=   L_obj * -1 * torch.sigmoid(y_box[4,Cy,Cx]).log() 
                         
                         Loss_class  +=   nn.BCEWithLogitsLoss(y_box[5:,Cy,Cx] , class_box ) 
                         Loss_noobj  +=   L_noobj*(torch.sum(-1 * (1 - torch.sigmoid(y_box[4,:,:] + eps)).log()) + torch.sum((1 -  torch.sigmoid(y_box[4,Cy,Cx])+eps).log()))
@@ -148,6 +149,7 @@ class TINY_YOLO_LOSS(nn.Module):
         Loss    =   torch.tensor(0,dtype = torch.float32).to('cuda')
         L_obj   =   1
         L_noobj =   100
+        L_coord =   1
         Loss_class  =   torch.tensor(0,dtype = torch.float32).to('cuda')
         Loss_noobj  =   torch.tensor(0,dtype = torch.float32).to('cuda')
         Loss_obj    =   torch.tensor(0,dtype = torch.float32).to('cuda')
@@ -190,8 +192,14 @@ class TINY_YOLO_LOSS(nn.Module):
                     obj_mask[Cy,Cx]   =   1
                     
 
-
-                    Loss_coord  +=   nn.MSELoss()(y_bb,t_bb)
+                    
+                    Loss_coords =   L_coord*nn.MSELoss(reduction = 'none')(y_bb,t_bb)
+                    x_loss      =   Loss_coords[0]
+                    y_loss      =   Loss_coords[1]
+                    w_loss      =   Loss_coords[2]
+                    h_loss      =   Loss_coords[3]
+                    #print(x_loss , y_loss , w_loss , h_loss)
+                    Loss_coord  +=   x_loss  +   y_loss + w_loss + h_loss
                     Loss_obj    +=   L_obj*nn.BCELoss()(torch.sigmoid(y_box[4,:,:]) , obj_mask)
                     Loss_class  +=   nn.BCELoss()(torch.sigmoid(y_box[5:,Cy,Cx]) , class_box ) 
                     #Loss_noobj  +=   L_noobj*nn.BCELoss()(torch.sigmoid(y_box[4,:,:]) , noobj_mask)
