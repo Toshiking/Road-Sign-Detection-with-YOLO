@@ -115,7 +115,7 @@ class TINY_YOLO_LOSS(nn.Module):
         self.class_n    =   5
         self.out        =   (4 + 1 + self.class_n)
     def IoU(self,target):
-        anchor      =   [[10,14],[23,27],[37,58],[81,82],[135,169],[344,319]]
+        anchor      =   [[40, 40], [98, 97], [150, 164], [199, 287], [225, 184], [311, 212]]
         iou_list    =   []
         for p in anchor:
             if(p[0] > target[0]):
@@ -143,12 +143,12 @@ class TINY_YOLO_LOSS(nn.Module):
     def forward(self, y_scale1 , y_scale2 ,t_list):
         counter =   1
         y       =   [y_scale1 , y_scale2 ]
-        p       =   [[10,14],[23,27],[37,58],[81,82],[135,169],[344,319]]
+        p       =   [[40, 40], [98, 97], [150, 164], [199, 287], [225, 184], [311, 212]]
         #print(y_scale1.shape , t_scale1.shape)
         eps     =   1e-16
         Loss    =   torch.tensor(0,dtype = torch.float32).to('cuda')
         L_obj   =   1
-        L_noobj =   100
+        L_noobj =   1
         L_coord =   1
         Loss_class  =   torch.tensor(0,dtype = torch.float32).to('cuda')
         Loss_noobj  =   torch.tensor(0,dtype = torch.float32).to('cuda')

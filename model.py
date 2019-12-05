@@ -215,7 +215,7 @@ class Tiny_YOLO(nn.Module):
         
         self.Conv11     =   Convolution_Block( 256, 128,1,1,0)
         self.Conv12     =   Convolution_Block( 384, 256,3,1,1)
-        self.Conv13     =   Convolution_Block( 256, out,1,1,0)
+        self.Conv13     =   Convolution_Block( 256, out,1,1,0,activation = 'linear' , isBatchNorm = False)
         
     def forward(self,x):
         x               =   self.MaxPooling(self.Conv1(x))

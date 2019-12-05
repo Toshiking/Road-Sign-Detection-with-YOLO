@@ -53,7 +53,7 @@ model_path      =   "./model/best_val.pth"  #学習済みモデルをロード�
 img_size        =   512                     #画像のサイズ
 lr_decay_rate   =   0.1                     #学習率減衰割合の指定
 decay_limit     =   30                      #何回うまくいかなかったら減衰させるか
-init_lr         =   0.1                     #最初の学習率
+init_lr         =   0.01                     #最初の学習率
 CLASS           =   5
 real_list       =   sorted(glob.glob(os.path.join(real_path,'*')))
 RESOLURION      =   2
@@ -109,7 +109,7 @@ except:
     print("最初からの学習です")
 
 #最適化関数の定義。今のところAdam
-optimizer       =   optim.Adam(model.parameters(),lr = init_lr)
+optimizer       =   optim.Adam(model.parameters(),lr = init_lr , weight_decay = 0.0005)
 
 #学習の定義
 
@@ -184,10 +184,10 @@ def test(epoch,best_loss,decay_counter):
 
 
 
-def Bounding_Box(y_scale1 , y_scale2, image,THRESHOLD = 0.01):
+def Bounding_Box(y_scale1 , y_scale2, image,THRESHOLD = 0.001):
     y       =   [y_scale1 , y_scale2]
     counter =   0
-    p       =   [[10,14],[23,27],[37,58],[81,82],[135,169],[344,319]]
+    p       =   [[40, 40], [98, 97], [150, 164], [199, 287], [225, 184], [311, 212]]
     #print(y_scale1.shape , t_scale1.shape)
     for i,y_scale in enumerate(y):
         #print(t_scale.shape , y_scale.shape)
@@ -198,27 +198,32 @@ def Bounding_Box(y_scale1 , y_scale2, image,THRESHOLD = 0.01):
         for y_box in y_boxes :
             #print(y_box.shape , t_box.shape)
             for batch in range(y_box.shape[0]):
-                N_size  =   y_box.shape[2]
-                for y in range(N_size):
-                #print(N_size,place,y,x,torch.max(y_box[batch,4,:,:]))
-                    for x in range(N_size):
-                        if(torch.sigmoid(y_box[batch,4,y,x] )> THRESHOLD):
-                            #bx      =   int((x + torch.sigmoid(y_box[batch ,0,y,x])) * (416/N_size))
-                            bx      =   int((x * 416/N_size) + torch.sigmoid(y_box[batch ,0,y,x]).item() * (416/N_size))
-                            by      =   int((y * 416/N_size) + torch.sigmoid(y_box[batch ,1,y,x]).item() * (416/N_size))
-                            bw      =   int(torch.exp(y_box[batch ,2,y,x]).item() * p[counter][0]) 
-                            bh      =   int(torch.exp(y_box[batch ,3,y,x]).item() * p[counter][1])
-                            #bw      =   y_box[batch ,2,y,x] * (N_size)
-                            #bh      =   y_box[batch ,3,y,x] * (N_size)
-                            #bw      =   10
-                            #bh      =   10
-                            #print(bx,by,bw,bh) 
-                            index   =   torch.argmax(y_box[batch,5:,y,x]).item()
-                            cv2.rectangle(image , (bx - int(bw/2) , by - int(bh/2)-10) , (bx - int(bw/2) + 50 , by - int(bh/2)),color_list[index],-1,1 )
-                            cv2.putText(image, label_list[index], (bx - int(bw/2), by - int(bh/2) - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), thickness=1)
-                            cv2.rectangle(image , (bx - int(bw/2) , by - int(bh/2)) , (bx + int(bw/2) , by + int(bh/2)),color_list[index],1,1 )
-                counter +=  1
-    
+                N_size      =   y_box.shape[2]
+                mask        =   (torch.sigmoid(y_box[batch,4,:,:] )> THRESHOLD)
+                mask_numpy  =   mask.cpu().numpy()
+                y_list , x_list  =   torch.Tensor(np.where(mask_numpy == 1 ))
+                
+
+            
+                if (y_box[batch,4,mask].shape[0]!=0):
+                    bx      =   (x_list * 416/N_size) 
+                    bx      +=  torch.sigmoid(y_box[batch ,0,mask]).to('cpu') * (416/N_size)
+                    bx      =   bx.int()
+                    by      =   (y_list * 416/N_size)
+                    by      +=  torch.sigmoid(y_box[batch ,1,mask]).to('cpu') * (416/N_size)
+                    by      =   by.int()
+                    bw      =   (torch.exp(y_box[batch ,2,mask]).to('cpu') * p[counter][0]).int() 
+                    bh      =   (torch.exp(y_box[batch ,3,mask]).to('cpu') * p[counter][1]).int()
+                    index   =   torch.argmax(y_box[batch,5:,mask] , dim = 0).to('cpu')
+                    #print(y_box[batch,5:,mask],index)
+                    
+                    for n in range(y_box[batch,4,mask].shape[0]):
+                        #print(bx[n],by[n],bw[n],bh[n],index[n])
+                        cv2.rectangle(image , (bx[n] - int(bw[n]/2) , by[n] - int(bh[n]/2)-10) , (bx[n] - int(bw[n]/2) + 50 , by[n] - int(bh[n]/2)),color_list[index[n]],-1,1 )
+                        cv2.putText(image, label_list[index[n]], (bx[n] - int(bw[n]/2), by[n] - int(bh[n]/2) - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), thickness=1)
+                        cv2.rectangle(image , (bx[n] - int(bw[n]/2) , by[n] - int(bh[n]/2)) , (bx[n] + int(bw[n]/2) , by[n] + int(bh[n]/2)),color_list[index[n]],1,1 )
+
+                counter +=  1            
     return image
     
 def real():
@@ -240,30 +245,63 @@ def real():
             print("例外args:", e.args)
             continue
 
+def Image_Resizer(image , img_size):
+    image_list  =   []
+
+    h_size  =   image.shape[1]
+    v_size  =   image.shape[0]
+
+    if(h_size % img_size > img_size / 2):
+        h_mag   =   int(h_size / img_size) + 1
+    else:
+        h_mag   =   int(h_size / img_size)
+    
+    if(v_size % img_size > img_size / 2):
+        v_mag   =   int(v_size / img_size) + 1
+    else:
+        v_mag   =   int(v_size / img_size)
+    
+    image   =   cv2.resize(image , (img_size * h_mag , img_size * v_mag) , cv2.INTER_LANCZOS4)
+    
+    for i in range(v_mag):
+        for j in range(h_mag):
+            image_list.append(image[i * img_size : (i+1) * img_size , j * img_size : (j+1) * img_size ,:])
+
+    return image_list , h_mag , v_mag
 
 def RealTime():
     model.eval()
     total_loss  =   0
     cap         =   cv2.VideoCapture(0)
-    THRESHOLD   =   0
+    #cap         =   cv2.VideoCapture("./シーケンス 01_斑鳩～三郷_晴れ.m4v")
+    THRESHOLD   =   0.001
     while(1):
-
-        ret , data        =   cap.read()
-        data        =   cv2.resize(data , (416 ,416))
+        ret , data  =   cap.read()
+        #data        =   cv2.resize(data , (int(data.shape[1]/2) ,int(data.shape[0]/2 )))
         image       =   copy.deepcopy(data)
+        image_list  ,h_mag ,v_mag   =   Image_Resizer(data , 416)
+        #print(len(image_list) , h_mag , v_mag)
         box         =   torch.zeros((1,3,416,416))
-        data        =   transforms.ToTensor()(np.array(data/255, dtype = np.float32))
-        box[0,:,:,:]=   data
-        x_image     =   box.to(device)
-        output_1,output_2          =   model(x_image)
-        #image   =   Bounding_Box(output_1 , output_2 , image)
-        try:
-            image   =   Bounding_Box(output_1 , output_2 , image , THRESHOLD = THRESHOLD)
-        except Exception as e:
-            print("例外args:", e.args)
-            continue
-        cv2.imshow("result" , image)
-        k       =   cv2.waitKey(1) & 0xFF # 1msec待つ
+        origin_image=   np.zeros((416 * v_mag ,416 * h_mag , 3),dtype = np.uint8)
+        for num ,patch_image in enumerate(image_list):
+             
+            data        =   transforms.ToTensor()(np.array(patch_image/255, dtype = np.float32))
+            box[0,:,:,:]=   data
+            x_image     =   box.to(device)
+            output_1,output_2          =   model(x_image)
+            #image   =   Bounding_Box(output_1 , output_2 , image)
+            #try:
+            patch_image =   Bounding_Box(output_1 , output_2 , patch_image , THRESHOLD = THRESHOLD)
+            #except Exception as e:
+            #    print("例外args:", e.args)
+            #    continue
+            x           =   int(num%h_mag)
+            y           =   int(num/h_mag)
+            origin_image[y * 416:(y+1)*416 ,x*416: (x+1)*416 , :]   =   patch_image
+        cv2.imshow("result" ,origin_image)
+
+
+        k       =   cv2.waitKey(16) & 0xFF # 1msec待つ
         if k == 27: # ESCキーで終了
             cap.release()
             exit()
